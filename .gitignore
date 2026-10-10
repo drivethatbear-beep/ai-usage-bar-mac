@@ -1,0 +1,7 @@
+.build/
+build/
+dist/
+.swiftpm/
+.DS_Store
+# 로컬 전용 빌드 설정(번들 ID 등)
+build.local.env
