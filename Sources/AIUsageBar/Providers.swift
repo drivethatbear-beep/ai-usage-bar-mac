@@ -215,7 +215,7 @@ enum CursorProvider {
     /// Cursor 앱의 로컬 설정 DB에서 액세스 토큰을 읽기 전용으로 꺼낸다.
     static func accessToken() -> String? {
         var db: OpaquePointer?
-        guard sqlite3_open_v2("file:\(dbPath)?mode=ro", &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_URI, nil) == SQLITE_OK else { return nil }
+        guard sqlite3_open_v2(dbPath, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else { return nil }
         defer { sqlite3_close(db) }
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, "SELECT value FROM ItemTable WHERE key = 'cursorAuth/accessToken'", -1, &stmt, nil) == SQLITE_OK else { return nil }

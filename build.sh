@@ -10,7 +10,7 @@ PACKAGE=false
 # 로컬 전용 설정(git에 올리지 않음, 배포 빌드에서는 무시): 예) BUNDLE_ID=com.example.AIUsageBar
 if ! $PACKAGE && [[ -f build.local.env ]]; then source build.local.env; fi
 BUNDLE_ID="${BUNDLE_ID:-io.github.drivethatbear-beep.ai-usage-bar}"
-VERSION="${VERSION:-1.0.0}"
+VERSION="${VERSION:-1.0.1}"
 
 if $PACKAGE; then
   swift build -c release --arch arm64 --arch x86_64

@@ -58,9 +58,10 @@ cd ai-usage-bar-mac
 
 ## 보안 · 개인정보
 - 로그인 정보는 **읽기만** 하며 다시 저장하지 않습니다. 갱신한 토큰은 메모리에만 둡니다(CLI·앱 로그인이 깨지지 않음).
-- 토큰은 각 서비스의 공식 주소(api.anthropic.com, chatgpt.com, cursor.com, cloudcode-pa.googleapis.com, grok.com)로만 HTTPS로 전송합니다.
-- 네트워크 캐시와 쿠키 저장소를 쓰지 않아 토큰이 디스크에 남지 않습니다.
-- Grok 로그인 창은 허용된 로그인 도메인만 열고, 창 제목에 현재 도메인과 🔒 표시가 나옵니다.
+- 토큰은 각 서비스의 공식 주소(api.anthropic.com, chatgpt.com, cursor.com, cloudcode-pa.googleapis.com, oauth2.googleapis.com, grok.com)로만 HTTPS로 전송합니다.
+- API 요청에는 네트워크 캐시와 쿠키 저장소를 쓰지 않아, 이 앱이 토큰을 디스크에 새로 남기지 않습니다.
+- 예외: Grok 로그인 쿠키는 브라우저처럼 이 앱 전용 WebKit 저장소(`~/Library/WebKit/<번들 ID>/`)에 남습니다.
+- Grok 로그인 창은 xAI 도메인과 정확히 지정된 로그인 주소(accounts.google.com, appleid.apple.com 등)만 열고, 창 제목에 현재 도메인과 🔒 표시가 나옵니다.
 - 분석·텔레메트리 기능은 없으며, 외부 서버로 사용량 데이터를 보내지 않습니다.
 
 ## 주의

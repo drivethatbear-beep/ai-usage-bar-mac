@@ -124,25 +124,26 @@ final class GrokWeb: NSObject, WKNavigationDelegate, NSWindowDelegate {
 
     // MARK: - WebKit delegates
 
-    /// 로그인 창에서 열 수 있는 도메인(메인 프레임 이동만 검사). 그 밖의 링크는 기본 브라우저로 연다.
-    private static let allowedHosts = ["grok.com", "x.ai", "x.com", "twitter.com", "google.com", "apple.com", "cloudflare.com"]
+    /// 로그인 창 메인 프레임에서 열 수 있는 주소. 그 밖의 링크는 기본 브라우저로 연다.
+    /// xAI 소유 도메인만 하위 도메인까지 허용하고, 외부 로그인 제공자는 로그인 전용 호스트만 정확히 허용한다
+    /// (예: sites.google.com 처럼 누구나 페이지를 올릴 수 있는 주소가 🔒와 함께 열리지 않도록).
+    private static let ownedDomains = ["grok.com", "x.ai"]
+    private static let exactHosts = ["x.com", "twitter.com", "api.x.com", "api.twitter.com",
+                                     "accounts.google.com", "appleid.apple.com", "challenges.cloudflare.com"]
 
     private static func isAllowed(_ url: URL?) -> Bool {
         guard let url else { return false }
-        if url.scheme == "about" { return true }
+        if url.absoluteString == "about:blank" { return true }
         guard url.scheme == "https", let host = url.host?.lowercased() else { return false }
-        return allowedHosts.contains { host == $0 || host.hasSuffix("." + $0) }
+        return exactHosts.contains(host) || ownedDomains.contains { host == $0 || host.hasSuffix("." + $0) }
     }
 
-    nonisolated func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction,
-                             decisionHandler: @escaping @MainActor @Sendable (WKNavigationActionPolicy) -> Void) {
+    func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction,
+                 decisionHandler: @escaping @MainActor @Sendable (WKNavigationActionPolicy) -> Void) {
         let url = action.request.url
-        let mainFrame = action.targetFrame?.isMainFrame ?? true
-        Task { @MainActor in
-            if !mainFrame || Self.isAllowed(url) { decisionHandler(.allow); return }
-            decisionHandler(.cancel)
-            if let url, url.scheme == "https" { NSWorkspace.shared.open(url) }
-        }
+        if !(action.targetFrame?.isMainFrame ?? true) || Self.isAllowed(url) { decisionHandler(.allow); return }
+        decisionHandler(.cancel)
+        if let url, url.scheme == "https" { NSWorkspace.shared.open(url) }
     }
 
     /// 주소창이 없으므로 지금 보고 있는 도메인을 창 제목에 보여준다(피싱 확인용).
