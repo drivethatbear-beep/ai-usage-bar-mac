@@ -19,9 +19,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let store = UsageStore()
     private var panel: UsagePanel?
     private let showPanelKey = "showPanel"
+    private let showSystemKey = "showSystem"
+    private let monitor = SystemMonitor()
+    private var system: SystemStats?
+    private var showSystem: Bool { UserDefaults.standard.bool(forKey: showSystemKey) }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Self.purgeLegacyCache()
+        UserDefaults.standard.register(defaults: [showSystemKey: true])
+        if showSystem { system = monitor.sample() }   // CPU 기준점(첫 값은 '--')
         let menu = NSMenu()
         menu.delegate = self
         menu.autoenablesItems = false
@@ -48,6 +54,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         })
         timers.append(Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.renderTitle() }
+        })
+        // Mac 상태는 3초마다(가벼운 시스템 호출만 사용)
+        timers.append(Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.sampleSystem() }
         })
     }
 
@@ -94,18 +104,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return u
     }
 
+    private func sampleSystem() {
+        guard showSystem else { return }
+        system = monitor.sample()
+        renderTitle()
+    }
+
     private var providers: [ProviderUsage] { [claude, codex, gemini, GrokWeb.shared.usage(), opencode] }
 
     // MARK: - Menu bar (도트 글자: C32 G84 *90 X-- O98)
 
     private func renderTitle() {
         store.providers = providers
+        store.system = system
         store.now = Date()
         // 이미지 안에서는 시스템 글자색이 메뉴 막대 밝기를 따르지 않으므로 직접 고른다.
         let dark = statusItem.button?.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         let ink = dark ? NSColor(white: 1, alpha: 0.9) : NSColor(white: 0, alpha: 0.8)
         let faint = ink.withAlphaComponent(0.35)
-        let groups: [PixelFont.BarGroup] = providers.map { p in
+        var groups: [PixelFont.BarGroup] = providers.map { p in
             let brand = Brand.nsColor(p.short)
             // 앞의 두 기간만 표시(Claude: 5시간 + 7일, 모델별 주간 창은 드롭다운에서)
             let cols = p.windows.prefix(2).map { w -> PixelFont.BarColumn in
@@ -116,6 +133,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return .init(label: p.short, labelColor: brand,
                          columns: cols.isEmpty ? [.init(top: "--", topColor: faint, bottom: "--", bottomColor: faint)] : cols)
         }
+        if let s = system {
+            // M  위 = 사용률 %, 아래 = c(CPU) g(GPU) r(RAM)
+            let cols: [PixelFont.BarColumn] = [("c", s.cpu, s.cpu), ("g", s.gpu, s.gpu), ("r", s.memPercent, s.memAlertLevel)].map { tag, v, alert in
+                .init(top: v.map { "\(Int($0.rounded()))" } ?? "--", topColor: alert.map { loadNSColor($0, normal: ink) } ?? faint,
+                      bottom: tag, bottomColor: faint)
+            }
+            groups.append(.init(label: "M", labelColor: ink, columns: cols))
+        }
         statusItem.button?.image = PixelFont.menuBarImage(groups)
     }
 
@@ -124,6 +149,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
         store.providers = providers
+        store.system = system
         store.now = Date()
 
         let card = NSHostingView(rootView: UsageWidgetView(store: store, embedded: true))
@@ -139,6 +165,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if GrokTimer.resetAt != nil { menu.addItem(action("Grok 타이머 해제", #selector(clearGrokTimer))) }
         menu.addItem(action("Claude CLI 로그인…", #selector(claudeLogin)))
         menu.addItem(.separator())
+        let sys = action("Mac 상태 표시 (CPU · GPU · 메모리)", #selector(toggleSystem))
+        sys.state = showSystem ? .on : .off
+        menu.addItem(sys)
         let widget = action("화면 위젯으로도 표시", #selector(togglePanel), key: "w")
         widget.state = panel?.isVisible == true ? .on : .off
         menu.addItem(widget)
@@ -170,6 +199,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard let panel else { return }
         if panel.isVisible { panel.orderOut(nil) } else { panel.orderFrontRegardless() }
         UserDefaults.standard.set(panel.isVisible, forKey: showPanelKey)
+    }
+
+    @objc private func toggleSystem() {
+        UserDefaults.standard.set(!showSystem, forKey: showSystemKey)
+        system = showSystem ? monitor.sample() : nil
+        renderTitle()
     }
 
     @objc private func grokLogin() { GrokWeb.shared.showLogin() }

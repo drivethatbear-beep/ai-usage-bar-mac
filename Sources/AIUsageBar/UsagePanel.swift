@@ -5,6 +5,16 @@ import SwiftUI
 final class UsageStore: ObservableObject {
     @Published var providers: [ProviderUsage] = []
     @Published var now = Date()
+    @Published var system: SystemStats?
+}
+
+/// 사용률(높을수록 나쁨) 색: 90% 이상 빨강 · 70% 이상 주황
+func loadColor(_ used: Double, normal: Color) -> Color {
+    used >= 90 ? .red : used >= 70 ? .orange : normal
+}
+
+func loadNSColor(_ used: Double, normal: NSColor) -> NSColor {
+    used >= 90 ? .systemRed : used >= 70 ? .systemOrange : normal
 }
 
 func levelColor(_ remaining: Double) -> Color {
@@ -31,6 +41,10 @@ struct UsageWidgetView: View {
             ForEach(store.providers, id: \.short) { p in
                 ProviderBlock(p: p)
                 if p.short != store.providers.last?.short { DottedDivider() }
+            }
+            if let s = store.system {
+                if !store.providers.isEmpty { DottedDivider() }
+                SystemBlock(s: s)
             }
         }
         .padding(.horizontal, 14)
@@ -108,6 +122,42 @@ private struct ProviderBlock: View {
             }
         } else {
             PixelText(text: "--", color: .secondary)
+        }
+    }
+}
+
+/// 이 Mac의 CPU · GPU · 메모리 · 열 상태. 막대는 '사용한' 양을 채운다.
+private struct SystemBlock: View {
+    let s: SystemStats
+    private let tint = Color.primary.opacity(0.75)
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(alignment: .center, spacing: 6) {
+                Circle().fill(tint).frame(width: 8, height: 8)
+                Text("MAC · \(s.chip.uppercased())").font(.system(size: 11, weight: .bold, design: .monospaced))
+                    .foregroundStyle(tint).lineLimit(1)
+                Spacer()
+            }
+            row("CPU", s.cpu, detail: nil)
+            row("GPU", s.gpu, detail: s.gpuMemory.map { "GPU 메모리 \(SystemStats.gb($0)) GB" })
+            row("메모리", s.memPercent, alert: s.memAlertLevel,
+                detail: "\(SystemStats.gb(s.memUsed)) / \(SystemStats.gb(s.memTotal)) GB · 압박 \(s.pressureLabel)"
+                    + (s.swapUsed > 0 ? " · 스왑 \(SystemStats.gb(s.swapUsed)) GB" : ""))
+            Text("열 상태 \(s.thermalLabel)").font(mono)
+                .foregroundStyle(s.thermal == .serious || s.thermal == .critical ? .orange : .secondary)
+        }
+    }
+
+    @ViewBuilder private func row(_ label: String, _ used: Double?, alert: Double? = nil, detail: String?) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 6) {
+                Text(label).font(mono).lineLimit(1).frame(width: 78, alignment: .leading)
+                DotBar(remaining: used ?? 0, color: loadColor(alert ?? used ?? 0, normal: tint))
+                Spacer(minLength: 0)
+                Text(used.map { "\(Int($0.rounded()))%" } ?? "--").font(mono.monospacedDigit()).frame(width: 34, alignment: .trailing)
+            }
+            if let detail { Text(detail).font(mono).foregroundStyle(.secondary) }
         }
     }
 }

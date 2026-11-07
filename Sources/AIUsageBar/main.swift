@@ -28,6 +28,15 @@ if CommandLine.arguments.contains("--dump") {
         await show("ChatGPT") { try await CodexProvider.fetch() }
         await show("Gemini") { try await GeminiProvider.fetch() }
         await show("OpenCode Go") { try await OpenCodeProvider.fetch() }
+        let mon = SystemMonitor()
+        _ = mon.sample()
+        try? await Task.sleep(nanoseconds: 1_000_000_000)
+        let s = mon.sample()
+        func pct(_ v: Double?) -> String { v.map { "\(Int($0.rounded()))%" } ?? "--" }
+        print("[Mac · \(s.chip)]")
+        print("  CPU \(pct(s.cpu)) · GPU \(pct(s.gpu))\(s.gpuMemory.map { " (GPU 메모리 \(SystemStats.gb($0)) GB)" } ?? "")")
+        print("  메모리 \(SystemStats.gb(s.memUsed)) / \(SystemStats.gb(s.memTotal)) GB (\(pct(s.memPercent))) · 압박 \(s.pressureLabel) · 스왑 \(SystemStats.gb(s.swapUsed)) GB")
+        print("  열 상태 \(s.thermalLabel)")
         print("[Grok · Cursor] 앱 안의 grok.com 로그인으로 확인(--dump 미지원)\(CursorPlan.unifiedTier().map { " · Cursor 요금제 \($0)" } ?? "")")
         exit(0)
     }

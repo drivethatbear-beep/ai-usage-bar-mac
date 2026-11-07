@@ -1,14 +1,14 @@
 # AI Usage — macOS 메뉴 막대 AI 구독 사용량 모니터
 
-Claude · ChatGPT(Codex) · Gemini · Grok/Cursor · OpenCode Go 구독의 **남은 사용량과 리셋까지 남은 시간**을 macOS 메뉴 막대에 도트(pixel dot) 디자인으로 보여주는 앱입니다.
+Claude · ChatGPT(Codex) · Gemini · Grok/Cursor · OpenCode Go 구독의 **남은 사용량과 리셋까지 남은 시간**, 그리고 **이 Mac의 CPU · GPU · 메모리 상태**를 macOS 메뉴 막대에 도트(pixel dot) 디자인으로 보여주는 앱입니다.
 
 > 🪟 Windows 작업표시줄 버전: [drivethatbear-beep/ai-usage-bar](https://github.com/drivethatbear-beep/ai-usage-bar)
 
 ![메뉴 막대](docs/menubar.png)
 
 ```
-C  96  52    G  9     ✦  99  99    X  95    O  100 98
-   4h  5d       2d       4h  4h       5d       4h  1d
+C  96  52    G  9     ✦  99  99    X  95    O  100 98    M  28  33  70
+   4h  5d       2d       4h  4h       5d       4h  1d       c   g   r
 ```
 
 - **큰 글자 색** = 서비스 · **위 줄** = 남은 % · **아래 줄** = 리셋까지 남은 시간(`45m` / `4h` / `5d`)
@@ -22,6 +22,9 @@ C  96  52    G  9     ✦  99  99    X  95    O  100 98
 | 🟨 `✦` | Gemini | Pro · Flash(+ Antigravity 내 Claude) | Antigravity 로그인 토큰 |
 | 🟦 `X` | Grok · Cursor | 공유 주간 한도(Grok 앱 · Grok Build · Cursor) | 앱 안의 grok.com 로그인(+ Cursor 앱의 요금제 이름) |
 | 🟪 `O` | OpenCode Go | 5시간 · 주간 · 월간 | OpenCode에 연결된 Go API 키 |
+| ⬜ `M` | 이 Mac | CPU(`c`) · GPU(`g`) · 메모리(`r`) **사용률**, GPU 메모리 · 스왑 · 메모리 압박 · 열 상태 | macOS 시스템 정보(3초마다, 관리자 권한 불필요) |
+
+> `M` 항목의 숫자는 남은 양이 아니라 **사용 중인 양**입니다. CPU·GPU는 70% 이상 주황, 90% 이상 빨강이고, 메모리는 macOS가 원래 넉넉히 채워 쓰기 때문에 사용률 대신 **메모리 압박**(경고 주황 · 위험 빨강)으로 색을 정합니다. 메뉴의 "Mac 상태 표시"로 끌 수 있습니다.
 
 > **Grok과 Cursor는 한 항목입니다.** 2026년 8월 SpaceX(SpaceXAI)가 Cursor를 인수한 뒤 X Subscription(통합) 요금제는 Grok 앱·Grok Build·Cursor가 주간 한도 하나를 같이 씁니다. 그래서 grok.com의 사용률을 "Grok · Cursor"로 보여주고, Cursor 앱이 통합 요금제(`unified_*`)면 등급(예: Ultra)을 이름에 붙입니다. Cursor 앱을 따로 읽던 예전 방식(`cursor.com/api/usage-summary`)은 Cursor 토큰 형식이 바뀌어 더 이상 쓰지 않습니다.
 
