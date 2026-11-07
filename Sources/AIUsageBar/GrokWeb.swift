@@ -51,16 +51,18 @@ final class GrokWeb: NSObject, WKNavigationDelegate, NSWindowDelegate {
     }
 
     func usage() -> ProviderUsage {
-        var u = ProviderUsage(name: "Grok", short: "X")
+        // Grok 앱 · Grok Build · Cursor가 같은 주간 한도를 쓴다(X Subscription 통합 요금제).
+        var u = ProviderUsage(name: "Grok · Cursor" + (CursorPlan.unifiedTier().map { " (\($0))" } ?? ""), short: "X")
         let fresh = lastData.map { Date().timeIntervalSince($0) < 3_600 } ?? false
         if fresh, !windows.isEmpty {
             u.windows = windows.keys.sorted().compactMap { windows[$0] }
+            u.extras = ["Grok · Grok Build · Cursor 공유 한도"]
             u.fetchedAt = lastData
         } else if let r = GrokTimer.resetAt {
             u.windows = [UsageWindow(label: "한도 도달", usedPercent: 100, resetsAt: r)]
             u.extras = ["수동 타이머"]
         } else if needsLogin || lastData == nil {
-            u.error = "Grok 연결 필요 — 메뉴/위젯 우클릭 ‘Grok 로그인…’"
+            u.error = "Grok 연결 필요 — 메뉴/위젯 우클릭 ‘Grok · Cursor 로그인…’"
         } else {
             u.error = "사용량 응답을 해석하지 못함"
         }

@@ -20,7 +20,7 @@ enum PixelFont {
         "C": ["111", "100", "100", "100", "111"],
         "G": ["111", "100", "101", "101", "111"],
         "X": ["101", "101", "010", "101", "101"],
-        "^": ["100", "110", "111", "110", "001"],   // Cursor 화살표
+        "O": ["010", "101", "101", "101", "010"],   // OpenCode (숫자 0과 구분되는 둥근 O)
         "*": ["010", "010", "111", "010", "010"],   // Gemini 반짝이
         "d": ["001", "001", "111", "101", "111"],
         "h": ["100", "100", "111", "101", "101"],
@@ -129,8 +129,8 @@ enum Brand {
         switch short {
         case "C": return NSColor(srgbRed: 0.93, green: 0.49, blue: 0.33, alpha: 1)   // Claude 주황
         case "G": return NSColor(srgbRed: 0.10, green: 0.75, blue: 0.55, alpha: 1)   // ChatGPT/Codex 초록
-        case "X": return NSColor(srgbRed: 0.40, green: 0.60, blue: 1.00, alpha: 1)   // Grok 파랑
-        case "^": return NSColor(srgbRed: 0.72, green: 0.50, blue: 1.00, alpha: 1)   // Cursor 보라
+        case "X": return NSColor(srgbRed: 0.40, green: 0.60, blue: 1.00, alpha: 1)   // Grok · Cursor 파랑
+        case "O": return NSColor(srgbRed: 0.72, green: 0.50, blue: 1.00, alpha: 1)   // OpenCode 보라
         case "*": return NSColor(srgbRed: 0.98, green: 0.78, blue: 0.20, alpha: 1)   // Gemini 노랑
         default: return .labelColor
         }

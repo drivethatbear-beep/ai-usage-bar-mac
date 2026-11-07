@@ -207,66 +207,90 @@ enum CodexProvider {
     }
 }
 
-// MARK: - Cursor (Cursor 앱 로그인 토큰 → cursor.com/api/usage-summary)
+// MARK: - 로컬 SQLite 읽기 도우미(읽기 전용)
 
-enum CursorProvider {
-    static let dbPath = home.appendingPathComponent("Library/Application Support/Cursor/User/globalStorage/state.vscdb").path
-
-    /// Cursor 앱의 로컬 설정 DB에서 액세스 토큰을 읽기 전용으로 꺼낸다.
-    static func accessToken() -> String? {
+enum SQLiteRead {
+    /// 첫 행 첫 열을 문자열로 읽는다. 앱이 쓰는 중인 WAL DB도 읽기 전용으로 연다.
+    static func string(_ path: String, _ sql: String) -> String? {
+        guard FileManager.default.fileExists(atPath: path) else { return nil }
         var db: OpaquePointer?
-        guard sqlite3_open_v2(dbPath, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else { return nil }
+        guard sqlite3_open_v2(path, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else { sqlite3_close(db); return nil }
         defer { sqlite3_close(db) }
+        sqlite3_busy_timeout(db, 1_000)
         var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, "SELECT value FROM ItemTable WHERE key = 'cursorAuth/accessToken'", -1, &stmt, nil) == SQLITE_OK else { return nil }
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return nil }
         defer { sqlite3_finalize(stmt) }
         guard sqlite3_step(stmt) == SQLITE_ROW, let c = sqlite3_column_text(stmt, 0) else { return nil }
         return String(cString: c)
     }
+}
 
-    /// JWT 본문에서 사용자 ID(sub)와 만료 시각을 읽는다.
-    static func claims(_ jwt: String) -> (user: String, exp: Date?)? {
-        let parts = jwt.split(separator: ".")
-        guard parts.count >= 2 else { return nil }
-        var b64 = parts[1].replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
-        b64 += String(repeating: "=", count: (4 - b64.count % 4) % 4)
-        guard let data = Data(base64Encoded: b64),
-              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let sub = obj["sub"] as? String else { return nil }
-        return (sub.components(separatedBy: "|").last ?? sub, HTTP.number(obj["exp"]).map { Date(timeIntervalSince1970: $0) })
+// MARK: - Cursor 요금제 이름(사용량은 Grok과 같은 공유 한도라 Grok 항목에 합쳐 보여준다)
+//
+// 2026년 8월 SpaceX(SpaceXAI)가 Cursor를 인수한 뒤 X Subscription 요금제는 Grok 앱·Grok Build·Cursor가
+// 주간 한도 하나를 같이 쓴다. Cursor 앱의 토큰도 더 이상 JWT가 아니라 예전 usage-summary 경로로는 읽히지 않는다.
+
+enum CursorPlan {
+    static let dbPath = home.appendingPathComponent("Library/Application Support/Cursor/User/globalStorage/state.vscdb").path
+
+    /// "unified_ultra" → "Ultra". 통합 요금제가 아니면 nil.
+    static func unifiedTier() -> String? {
+        guard let t = SQLiteRead.string(dbPath, "SELECT value FROM ItemTable WHERE key = 'cursorAuth/stripeMembershipType'"),
+              t.hasPrefix("unified_") else { return nil }
+        return String(t.dropFirst("unified_".count)).replacingOccurrences(of: "_", with: " ").capitalized
+    }
+}
+
+// MARK: - OpenCode Go (OpenCode에 연결된 Go API 키 → opencode.ai/zen/go/v1/usage)
+
+enum OpenCodeProvider {
+    private static var dataDir: URL {
+        let env = ProcessInfo.processInfo.environment
+        if let x = env["XDG_DATA_HOME"], x.hasPrefix("/") { return URL(fileURLWithPath: x).appendingPathComponent("opencode") }
+        return home.appendingPathComponent(".local/share/opencode")
+    }
+
+    /// 키 찾는 순서: OPENCODE_API_KEY → OpenCode DB의 opencode-go 연결 → 예전 auth.json
+    static func apiKey() -> String? {
+        let env = ProcessInfo.processInfo.environment
+        if let k = env["OPENCODE_API_KEY"]?.trimmingCharacters(in: .whitespaces), !k.isEmpty { return k }
+        let db = env["OPENCODE_DB"] ?? dataDir.appendingPathComponent("opencode.db").path
+        if let raw = SQLiteRead.string(db, "SELECT value FROM credential WHERE integration_id = 'opencode-go' AND active = 1 ORDER BY time_updated DESC LIMIT 1"),
+           let obj = try? JSONSerialization.jsonObject(with: Data(raw.utf8)) as? [String: Any],
+           let k = obj["key"] as? String, !k.isEmpty { return k }
+        if let d = try? Data(contentsOf: dataDir.appendingPathComponent("auth.json")),
+           let root = try? JSONSerialization.jsonObject(with: d) as? [String: Any] {
+            for id in ["opencode-go", "opencode"] {
+                if let e = root[id] as? [String: Any], let k = e["key"] as? String, !k.isEmpty { return k }
+            }
+        }
+        return nil
     }
 
     static func fetch() async throws -> ProviderUsage {
-        guard let token = accessToken(), let c = claims(token) else {
-            throw FetchError.missing("Cursor 로그인 정보 없음 — Cursor 앱에서 로그인")
+        guard let key = apiKey() else {
+            throw FetchError.missing("OpenCode Go 연결 정보 없음 — OpenCode에서 Go 구독 연결")
         }
-        if let exp = c.exp, exp < Date() { throw FetchError.auth("Cursor 토큰 만료 — Cursor 앱을 한 번 실행") }
-
         let json: [String: Any]
         do {
-            json = try await HTTP.getJSON(URL(string: "https://cursor.com/api/usage-summary")!, headers: [
-                "Cookie": "WorkosCursorSessionToken=\(c.user)%3A%3A\(token)",
-                "Origin": "https://cursor.com",
+            json = try await HTTP.getJSON(URL(string: "https://opencode.ai/zen/go/v1/usage")!, headers: [
+                "Authorization": "Bearer \(key)",
                 "Accept": "application/json",
             ])
         } catch FetchError.auth {
-            throw FetchError.auth("Cursor 토큰 거부됨 — Cursor 앱을 한 번 실행")
+            throw FetchError.auth("OpenCode Go 키 거부됨 — OpenCode에서 Go 다시 연결")
         }
+        guard let usage = json["usage"] as? [String: Any] else { throw FetchError.parse }
 
-        let plan = (json["membershipType"] as? String).map { " (\($0.capitalized))" } ?? ""
-        var u = ProviderUsage(name: "Cursor" + plan, short: "^")
-        let reset = (json["billingCycleEnd"] as? String).flatMap(Fmt.parseISO)
-        if json["isUnlimited"] as? Bool == true { u.extras.append("무제한 플랜") }
-        if let p = (json["individualUsage"] as? [String: Any])?["plan"] as? [String: Any] {
-            // 전체(Auto 포함) 사용률과, 직접 고른 API 모델 사용률이 따로 있다.
-            if let total = HTTP.number(p["totalPercentUsed"]) { u.windows.append(UsageWindow(label: "월간 전체", usedPercent: total, resetsAt: reset)) }
-            if let api = HTTP.number(p["apiPercentUsed"]) { u.windows.append(UsageWindow(label: "월간 API", usedPercent: api, resetsAt: reset)) }
+        var u = ProviderUsage(name: "OpenCode Go", short: "O")
+        // percent는 0~100 단위(1 = 1%). rolling은 5시간 창이다.
+        for (key, label) in [("rolling", "5시간"), ("weekly", "주간"), ("monthly", "월간")] {
+            guard let w = usage[key] as? [String: Any], let pct = HTTP.number(w["percent"]) else { continue }
+            u.windows.append(UsageWindow(label: label, usedPercent: min(max(pct, 0), 100),
+                                         resetsAt: (w["resetsAt"] as? String).flatMap(Fmt.parseISO)))
+            if let st = w["status"] as? String, st != "ok" { u.extras.append("\(label) 한도: \(st)") }
         }
-        if let od = (json["individualUsage"] as? [String: Any])?["onDemand"] as? [String: Any], od["enabled"] as? Bool == true,
-           let used = HTTP.number(od["used"]) {
-            u.extras.append("온디맨드 사용 $\((used / 100).formatted(.number.precision(.fractionLength(2))))")
-        }
-        guard !u.windows.isEmpty || !u.extras.isEmpty else { throw FetchError.parse }
+        guard !u.windows.isEmpty else { throw FetchError.parse }
         return u
     }
 }

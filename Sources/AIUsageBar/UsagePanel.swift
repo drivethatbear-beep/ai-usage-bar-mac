@@ -46,7 +46,7 @@ struct UsageWidgetView: View {
                 .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(.white.opacity(0.12)))
                 .contextMenu {
                     Button("지금 새로고침", action: onRefresh)
-                    Button("Grok 로그인…", action: onGrokLogin)
+                    Button("Grok · Cursor 로그인…", action: onGrokLogin)
                     Button("Grok 리셋 타이머(수동)…", action: onGrokTimer)
                     Divider()
                     Button("위젯 숨기기", action: onHide)

@@ -9,8 +9,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var codex = ProviderUsage(name: "ChatGPT · Codex", short: "G", error: "불러오는 중…")
     private var claudeBlockedUntil: Date?
     private var codexBlockedUntil: Date?
-    private var cursor = ProviderUsage(name: "Cursor", short: "^", error: "불러오는 중…")
-    private var cursorBlockedUntil: Date?
+    private var opencode = ProviderUsage(name: "OpenCode Go", short: "O", error: "불러오는 중…")
+    private var opencodeBlockedUntil: Date?
     private var gemini = ProviderUsage(name: "Gemini", short: "*", error: "불러오는 중…")
     private var geminiBlockedUntil: Date?
     private var lastRefresh: Date?
@@ -28,7 +28,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         statusItem.menu = menu
         statusItem.autosaveName = "AIUsageBarItem"      // ⌘+드래그로 옮긴 위치 기억
         statusItem.button?.imagePosition = .imageOnly
-        statusItem.button?.toolTip = "AI 사용량 (Claude · ChatGPT/Codex · Grok)"
+        statusItem.button?.toolTip = "AI 사용량 (Claude · ChatGPT/Codex · Gemini · Grok/Cursor · OpenCode)"
         GrokWeb.shared.onUpdate = { [weak self] in self?.renderTitle() }
 
         panel = UsagePanel(rootView: UsageWidgetView(
@@ -74,13 +74,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             do { codex = try await CodexProvider.fetch(); codex.fetchedAt = Date(); codexBlockedUntil = nil }
             catch { codex = Self.failed(codex, error, blocked: &codexBlockedUntil) }
         }
-        if cursorBlockedUntil.map({ $0 <= Date() }) ?? true {
-            do { cursor = try await CursorProvider.fetch(); cursor.fetchedAt = Date(); cursorBlockedUntil = nil }
-            catch { cursor = Self.failed(cursor, error, blocked: &cursorBlockedUntil) }
-        }
         if geminiBlockedUntil.map({ $0 <= Date() }) ?? true {
             do { gemini = try await GeminiProvider.fetch(); gemini.fetchedAt = Date(); geminiBlockedUntil = nil }
             catch { gemini = Self.failed(gemini, error, blocked: &geminiBlockedUntil) }
+        }
+        if opencodeBlockedUntil.map({ $0 <= Date() }) ?? true {
+            do { opencode = try await OpenCodeProvider.fetch(); opencode.fetchedAt = Date(); opencodeBlockedUntil = nil }
+            catch { opencode = Self.failed(opencode, error, blocked: &opencodeBlockedUntil) }
         }
         GrokWeb.shared.refresh()   // 결과는 비동기로 도착해 onUpdate로 다시 그림
     }
@@ -94,9 +94,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return u
     }
 
-    private var providers: [ProviderUsage] { [claude, codex, cursor, gemini, GrokWeb.shared.usage()] }
+    private var providers: [ProviderUsage] { [claude, codex, gemini, GrokWeb.shared.usage(), opencode] }
 
-    // MARK: - Menu bar (도트 글자: C32 G84 X--)
+    // MARK: - Menu bar (도트 글자: C32 G84 *90 X-- O98)
 
     private func renderTitle() {
         store.providers = providers
@@ -134,7 +134,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(.separator())
 
         menu.addItem(action("지금 새로고침", #selector(refreshNow), key: "r"))
-        menu.addItem(action("Grok 로그인…", #selector(grokLogin)))
+        menu.addItem(action("Grok · Cursor 로그인…", #selector(grokLogin)))
         menu.addItem(action("Grok 리셋 타이머(수동)…", #selector(setGrokTimer)))
         if GrokTimer.resetAt != nil { menu.addItem(action("Grok 타이머 해제", #selector(clearGrokTimer))) }
         menu.addItem(action("Claude CLI 로그인…", #selector(claudeLogin)))

@@ -26,9 +26,9 @@ if CommandLine.arguments.contains("--dump") {
         }
         await show("Claude") { try await ClaudeProvider.fetch() }
         await show("ChatGPT") { try await CodexProvider.fetch() }
-        await show("Cursor") { try await CursorProvider.fetch() }
         await show("Gemini") { try await GeminiProvider.fetch() }
-        print("[Grok] 앱 안의 웹 로그인으로 확인(--dump 미지원)")
+        await show("OpenCode Go") { try await OpenCodeProvider.fetch() }
+        print("[Grok · Cursor] 앱 안의 grok.com 로그인으로 확인(--dump 미지원)\(CursorPlan.unifiedTier().map { " · Cursor 요금제 \($0)" } ?? "")")
         exit(0)
     }
     RunLoop.main.run()
