@@ -188,7 +188,8 @@ enum GrokCredits {
         guard let msg = message, let config = Proto.fields(msg)[1]?.first?.bytes else { return nil }
         let f = Proto.fields(config)
         guard let pct = f[1]?.first?.float else { return nil }
-        let used = pct <= 1 && pct > 0 ? Double(pct) * 100 : Double(pct)   // 0~1 비율로 올 경우 대비
+        // grok.com 화면도 이 값을 0~100으로 쓴다(50·90 이상에서 갱신 주기를 줄임). 1.0은 1%다.
+        let used = pct.isFinite ? min(max(Double(pct), 0), 100) : 0
 
         var label = "구독"
         var reset: Date?

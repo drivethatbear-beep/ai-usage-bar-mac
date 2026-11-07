@@ -295,11 +295,30 @@ enum GeminiProvider {
     private static var project: String?
     private static var plan: String?
 
+    /// 최신 Antigravity는 토큰을 키체인(서비스 gemini · 계정 antigravity, go-keyring 형식)에 두고
+    /// 예전 버전은 ~/.gemini 파일에 둔다. 둘 다 읽어 만료가 가장 늦은 쪽을 쓴다.
+    private static func loadToken() -> [String: Any]? {
+        var found: [[String: Any]] = []
+        if let d = runCommand("/usr/bin/security", ["find-generic-password", "-s", "gemini", "-a", "antigravity", "-w"]),
+           var s = String(data: d, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) {
+            let prefix = "go-keyring-base64:"
+            if s.hasPrefix(prefix), let raw = Data(base64Encoded: String(s.dropFirst(prefix.count))) {
+                s = String(decoding: raw, as: UTF8.self)
+            }
+            if let t = parse(Data(s.utf8)) { found.append(t) }
+        }
+        if let d = try? Data(contentsOf: tokenFile), let t = parse(d) { found.append(t) }
+        func expiry(_ t: [String: Any]) -> Date { (t["expiry"] as? String).flatMap(Fmt.parseISO) ?? .distantPast }
+        return found.max { expiry($0) < expiry($1) }
+    }
+
+    private static func parse(_ data: Data) -> [String: Any]? {
+        (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["token"] as? [String: Any]
+    }
+
     private static func accessToken() async throws -> String {
         if let t = cachedToken, t.expiry > Date().addingTimeInterval(120) { return t.value }
-        guard let data = try? Data(contentsOf: tokenFile),
-              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let tok = root["token"] as? [String: Any] else {
+        guard let tok = loadToken() else {
             throw FetchError.missing("Antigravity 로그인 정보 없음 — Antigravity 앱에서 로그인")
         }
         if let at = tok["access_token"] as? String, let exp = (tok["expiry"] as? String).flatMap(Fmt.parseISO),
